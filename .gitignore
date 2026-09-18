@@ -1,4 +1,4 @@
-﻿# Dependencies
+# Dependencies
 node_modules/
 
 # Environment secrets
@@ -16,3 +16,4 @@ coverage/
 # Logs
 *.log
 npm-debug.log*
+*.tsbuildinfo
