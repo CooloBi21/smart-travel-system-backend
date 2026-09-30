@@ -5,6 +5,9 @@ import { CompaniesModule } from './companies/companies.module';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { ToursModule } from './tours/tours.module';
+import { DeparturesModule } from './departures/departures.module';
+import { BookingsModule } from './bookings/bookings.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -16,6 +19,9 @@ import { ToursModule } from './tours/tours.module';
     AuthModule,
     CompaniesModule,
     ToursModule,
+    DeparturesModule,
+    BookingsModule,
+    PaymentsModule,
   ],
 })
 export class AppModule {}
