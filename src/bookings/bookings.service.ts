@@ -96,6 +96,54 @@ export class BookingsService {
     );
   }
 
+  async getMyBookings(
+    userId: number,
+  ): Promise<BookingRecord[]> {
+    if (!Number.isInteger(userId) || userId <= 0) {
+      throw new BadRequestException(
+        'Authenticated user is invalid.',
+      );
+    }
+
+    return this.bookingsRepository.findByUserId(userId);
+  }
+
+  async getMyBookingById(
+    userId: number,
+    bookingId: number,
+  ): Promise<BookingRecord> {
+    if (!Number.isInteger(userId) || userId <= 0) {
+      throw new BadRequestException(
+        'Authenticated user is invalid.',
+      );
+    }
+
+    if (!Number.isInteger(bookingId) || bookingId <= 0) {
+      throw new BadRequestException(
+        'Invalid booking ID.',
+      );
+    }
+
+    const booking =
+      await this.bookingsRepository.findById(
+        bookingId,
+      );
+
+    if (!booking) {
+      throw new NotFoundException(
+        'Booking not found.',
+      );
+    }
+
+    if (booking.userId !== userId) {
+      throw new NotFoundException(
+        'Booking not found.',
+      );
+    }
+
+    return booking;
+  }
+
   private async findDepartureForBooking(
     client: PoolClient,
     departureId: number,
