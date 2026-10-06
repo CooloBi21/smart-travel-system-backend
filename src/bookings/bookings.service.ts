@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { DatabaseService } from '../database/database.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import {
   BookingRecord,
   BookingsRepository,
@@ -30,11 +31,16 @@ export interface BookingResult {
   totalAmount: number;
 }
 
+export interface BookingView extends BookingRecord {
+  totalAmount: number;
+}
+
 @Injectable()
 export class BookingsService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly bookingsRepository: BookingsRepository,
+    private readonly realtimeService: RealtimeService,
   ) {}
 
   async createBooking(
@@ -47,71 +53,102 @@ export class BookingsService {
       );
     }
 
-    return this.databaseService.withTransaction(
-      async (client: PoolClient) => {
-        const departure =
-          await this.findDepartureForBooking(
-            client,
-            dto.tourDepartureId,
-          );
+    const result =
+      await this.databaseService.withTransaction(
+        async (client: PoolClient) => {
+          const departure =
+            await this.findDepartureForBooking(
+              client,
+              dto.tourDepartureId,
+            );
 
-        if (!departure) {
-          throw new NotFoundException(
-            'Tour departure not found.',
-          );
-        }
+          if (!departure) {
+            throw new NotFoundException(
+              'Tour departure not found.',
+            );
+          }
 
-        const reservedSlots =
-          await this.getReservedSlots(
-            client,
-            departure.id,
-          );
+          const reservedSlots =
+            await this.getReservedSlots(
+              client,
+              departure.id,
+            );
 
-        const availableSlots =
-          departure.capacity - reservedSlots;
+          const availableSlots =
+            departure.capacity - reservedSlots;
 
-        if (dto.guestCount > availableSlots) {
-          throw new ConflictException(
-            `Not enough available seats. Available: ${availableSlots}.`,
-          );
-        }
+          if (dto.guestCount > availableSlots) {
+            throw new ConflictException(
+              `Not enough available seats. Available: ${availableSlots}.`,
+            );
+          }
 
-        const booking =
-          await this.createBookingInTransaction(
-            client,
-            userId,
-            dto,
-            departure.pricePerPerson,
-          );
+          const booking =
+            await this.createBookingInTransaction(
+              client,
+              userId,
+              dto,
+              departure.pricePerPerson,
+            );
 
-        const totalAmount =
-          booking.guestCount *
-          booking.unitPrice;
+          const totalAmount =
+            booking.guestCount *
+            booking.unitPrice;
 
-        return {
-          booking,
-          totalAmount,
-        };
+          return {
+            booking,
+            totalAmount,
+          };
+        },
+      );
+
+    this.realtimeService.emitToUser(
+      userId,
+      'booking.created',
+      {
+        bookingId: result.booking.id,
+        departureId:
+          result.booking.tourDepartureId,
+        guestCount: result.booking.guestCount,
+        unitPrice: result.booking.unitPrice,
+        status: result.booking.status,
+        totalAmount: result.totalAmount,
       },
     );
+
+    return result;
+  }
+
+  private toBookingView(booking: BookingRecord): BookingView {
+    return {
+      ...booking,
+      totalAmount:
+        Number(booking.unitPrice) *
+        Number(booking.guestCount),
+    };
   }
 
   async getMyBookings(
     userId: number,
-  ): Promise<BookingRecord[]> {
+  ): Promise<BookingView[]> {
     if (!Number.isInteger(userId) || userId <= 0) {
       throw new BadRequestException(
         'Authenticated user is invalid.',
       );
     }
 
-    return this.bookingsRepository.findByUserId(userId);
+    const bookings =
+      await this.bookingsRepository.findByUserId(userId);
+
+    return bookings.map((booking) =>
+      this.toBookingView(booking),
+    );
   }
 
   async getMyBookingById(
     userId: number,
     bookingId: number,
-  ): Promise<BookingRecord> {
+  ): Promise<BookingView> {
     if (!Number.isInteger(userId) || userId <= 0) {
       throw new BadRequestException(
         'Authenticated user is invalid.',
@@ -141,7 +178,7 @@ export class BookingsService {
       );
     }
 
-    return booking;
+    return this.toBookingView(booking);
   }
 
   private async findDepartureForBooking(

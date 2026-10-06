@@ -8,6 +8,10 @@ import { ToursModule } from './tours/tours.module';
 import { DeparturesModule } from './departures/departures.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { PaymentsModule } from './payments/payments.module';
+import { RealtimeModule } from './realtime/realtime.module';
+import { RecommendationModule } from './recommendation/recommendation.module';
+import { IngestionModule } from './ingestion/ingestion.module';
+import { DestinationsModule } from './destinations/destinations.module';
 
 @Module({
   imports: [
@@ -22,6 +26,10 @@ import { PaymentsModule } from './payments/payments.module';
     DeparturesModule,
     BookingsModule,
     PaymentsModule,
+    RealtimeModule,
+    RecommendationModule,
+    IngestionModule,
+    DestinationsModule,
   ],
 })
 export class AppModule {}

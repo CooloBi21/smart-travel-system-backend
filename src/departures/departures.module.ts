@@ -8,6 +8,7 @@ import { ToursModule } from '../tours/tours.module';
 import { DeparturesController } from './departures.controller';
 import { DeparturesService } from './departures.service';
 import { DeparturesRepository } from './repositories/departures.repository';
+import { PublicDeparturesController } from './public-departures.controller';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { DeparturesRepository } from './repositories/departures.repository';
   ],
   controllers: [
     DeparturesController,
+    PublicDeparturesController,
   ],
   providers: [
     DeparturesService,
