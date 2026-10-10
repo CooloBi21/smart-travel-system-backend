@@ -251,38 +251,28 @@ export class RecommendationService {
     const reasons: string[] = [];
 
     if (breakdown.preference >= 0.8) {
-      reasons.push(
-        'phù hợp với sở thích của bạn',
-      );
+      reasons.push('phù hợp với sở thích của bạn');
     }
 
     if (breakdown.budget >= 0.8) {
-      reasons.push(
-        'phù hợp với ngân sách',
-      );
+      reasons.push('phù hợp với ngân sách');
     }
 
     if (breakdown.duration >= 0.8) {
-      reasons.push(
-        'phù hợp với thời lượng mong muốn',
-      );
+      reasons.push('phù hợp với thời lượng chuyến đi');
     }
 
     if (breakdown.destination >= 0.8) {
-      reasons.push(
-        'đúng điểm đến bạn quan tâm',
-      );
+      reasons.push('phù hợp với điểm đến bạn quan tâm');
     }
 
     if (breakdown.tourHistory >= 0.8) {
-      reasons.push(
-        'tương đồng với lịch sử du lịch',
-      );
+      reasons.push('tương đồng với lịch sử du lịch của bạn');
     }
 
     if (breakdown.behavior >= 0.8) {
       reasons.push(
-        'phù hợp với hành vi tương tác gần đây',
+        'được ưu tiên dựa trên dữ liệu tương tác của bạn',
       );
     }
 

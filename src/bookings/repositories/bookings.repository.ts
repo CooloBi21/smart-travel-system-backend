@@ -22,6 +22,19 @@ export interface BookingRecord {
   updatedAt: Date;
 }
 
+export interface CompanyBookingRecord extends BookingRecord {
+  tourId: number;
+  tourTitle: string;
+  departureDate: string;
+  departurePrice: number;
+  departureCapacity: number;
+  departureStatus:
+    | 'SCHEDULED'
+    | 'CLOSED'
+    | 'CANCELLED'
+    | 'COMPLETED';
+}
+
 export interface CreateBookingData {
   userId: number;
   tourDepartureId: number;
@@ -94,6 +107,142 @@ export class BookingsRepository {
       );
 
     return result.rows;
+  }
+
+  async findByCompanyId(
+    companyId: number,
+  ): Promise<CompanyBookingRecord[]> {
+    const result =
+      await this.databaseService.query<CompanyBookingRecord>(
+        `
+          SELECT
+            b.id,
+            b.user_id AS "userId",
+            b.tour_departure_id AS "tourDepartureId",
+            t.id AS "tourId",
+            t.title AS "tourTitle",
+            td.departure_date AS "departureDate",
+            td.price_per_person AS "departurePrice",
+            td.capacity AS "departureCapacity",
+            td.status AS "departureStatus",
+            b.guest_count AS "guestCount",
+            b.unit_price AS "unitPrice",
+            b.contact_name AS "contactName",
+            b.contact_email AS "contactEmail",
+            b.contact_phone AS "contactPhone",
+            b.special_request AS "specialRequest",
+            b.status,
+            b.created_at AS "createdAt",
+            b.updated_at AS "updatedAt"
+          FROM public.bookings b
+          INNER JOIN public.tour_departures td
+            ON td.id = b.tour_departure_id
+          INNER JOIN public.tours t
+            ON t.id = td.tour_id
+          WHERE t.company_id = $1
+          ORDER BY b.created_at DESC
+        `,
+        [companyId],
+      );
+
+    return result.rows;
+  }
+
+  async findByIdAndCompanyId(
+    id: number,
+    companyId: number,
+  ): Promise<CompanyBookingRecord | null> {
+    const result =
+      await this.databaseService.query<CompanyBookingRecord>(
+        `
+          SELECT
+            b.id,
+            b.user_id AS "userId",
+            b.tour_departure_id AS "tourDepartureId",
+            t.id AS "tourId",
+            t.title AS "tourTitle",
+            td.departure_date AS "departureDate",
+            td.price_per_person AS "departurePrice",
+            td.capacity AS "departureCapacity",
+            td.status AS "departureStatus",
+            b.guest_count AS "guestCount",
+            b.unit_price AS "unitPrice",
+            b.contact_name AS "contactName",
+            b.contact_email AS "contactEmail",
+            b.contact_phone AS "contactPhone",
+            b.special_request AS "specialRequest",
+            b.status,
+            b.created_at AS "createdAt",
+            b.updated_at AS "updatedAt"
+          FROM public.bookings b
+          INNER JOIN public.tour_departures td
+            ON td.id = b.tour_departure_id
+          INNER JOIN public.tours t
+            ON t.id = td.tour_id
+          WHERE b.id = $1
+            AND t.company_id = $2
+          LIMIT 1
+        `,
+        [id, companyId],
+      );
+
+    return result.rows[0] ?? null;
+  }
+
+  async updateStatusByCompany(
+    bookingId: number,
+    companyId: number,
+    status: BookingStatus,
+    expectedStatus: BookingStatus,
+  ): Promise<BookingRecord | null> {
+    const result =
+      await this.databaseService.query<BookingRecord>(
+        `
+          UPDATE public.bookings b
+          SET
+            status = $3,
+            confirmed_at = CASE
+              WHEN $3 = 'CONFIRMED' THEN COALESCE(b.confirmed_at, NOW())
+              ELSE b.confirmed_at
+            END,
+            cancelled_at = CASE
+              WHEN $3 = 'CANCELLED' THEN COALESCE(b.cancelled_at, NOW())
+              ELSE b.cancelled_at
+            END,
+            completed_at = CASE
+              WHEN $3 = 'COMPLETED' THEN COALESCE(b.completed_at, NOW())
+              ELSE b.completed_at
+            END,
+            updated_at = NOW()
+          FROM public.tour_departures td
+          INNER JOIN public.tours t
+            ON t.id = td.tour_id
+          WHERE b.id = $1
+            AND b.tour_departure_id = td.id
+            AND t.company_id = $2
+            AND b.status = $4
+            AND (
+              $3 <> 'COMPLETED'
+              OR td.departure_date + t.duration_days - 1 < CURRENT_DATE
+            )
+          RETURNING
+            b.id,
+            b.user_id AS "userId",
+            b.tour_departure_id AS "tourDepartureId",
+            b.guest_count AS "guestCount",
+            b.unit_price AS "unitPrice",
+            b.contact_name AS "contactName",
+            b.contact_email AS "contactEmail",
+            b.contact_phone AS "contactPhone",
+            b.special_request AS "specialRequest",
+            b.status,
+            b.created_at AS "createdAt",
+            b.updated_at AS "updatedAt"
+        `,
+        [bookingId, companyId, status, expectedStatus],
+      );
+
+    return result.rows[0] ?? null;
   }
 
   async create(

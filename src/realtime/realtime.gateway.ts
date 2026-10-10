@@ -8,6 +8,7 @@ import {
 import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
+import { AuthService } from '../auth/auth.service';
 import { RealtimeService } from './realtime.service';
 
 interface JwtPayload {
@@ -32,6 +33,7 @@ export class RealtimeGateway
 
   constructor(
     private readonly jwtService: JwtService,
+    private readonly authService: AuthService,
     private readonly realtimeService: RealtimeService,
   ) {}
 
@@ -60,6 +62,8 @@ export class RealtimeGateway
         client.disconnect();
         return;
       }
+
+      await this.authService.getProfile(payload.sub);
 
       client.data.user = payload;
 

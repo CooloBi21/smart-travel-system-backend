@@ -40,6 +40,30 @@ export class DestinationsRepository {
     private readonly databaseService: DatabaseService,
   ) {}
 
+  async findAllActive(): Promise<DestinationRecord[]> {
+    const result =
+      await this.databaseService.query<DestinationRecord>(
+        `
+        SELECT
+          id,
+          name,
+          slug,
+          description,
+          location_name AS "locationName",
+          latitude::double precision AS latitude,
+          longitude::double precision AS longitude,
+          status,
+          created_at AS "createdAt",
+          updated_at AS "updatedAt"
+        FROM destinations
+        WHERE status = 'ACTIVE'
+        ORDER BY name ASC, id ASC
+        `,
+      );
+
+    return result.rows;
+  }
+
   async findById(
     id: number,
   ): Promise<DestinationRecord | null> {

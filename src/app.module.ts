@@ -12,6 +12,12 @@ import { RealtimeModule } from './realtime/realtime.module';
 import { RecommendationModule } from './recommendation/recommendation.module';
 import { IngestionModule } from './ingestion/ingestion.module';
 import { DestinationsModule } from './destinations/destinations.module';
+import { CategoriesModule } from './categories/categories.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { AiModule } from './ai/ai.module';
+import { ChatbotModule } from './chatbot/chatbot.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
 
 @Module({
   imports: [
@@ -30,6 +36,12 @@ import { DestinationsModule } from './destinations/destinations.module';
     RecommendationModule,
     IngestionModule,
     DestinationsModule,
+    CategoriesModule,
+    AnalyticsModule,
+    AiModule,
+    ChatbotModule,
+    ReviewsModule,
+    PlatformSettingsModule,
   ],
 })
 export class AppModule {}

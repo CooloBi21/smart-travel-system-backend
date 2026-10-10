@@ -9,7 +9,9 @@ import { DatabaseService } from '../database/database.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import {
   BookingRecord,
+  BookingStatus,
   BookingsRepository,
+  CompanyBookingRecord,
 } from './repositories/bookings.repository';
 import { CreateBookingDto } from './dto/create-booking.dto';
 
@@ -34,6 +36,20 @@ export interface BookingResult {
 export interface BookingView extends BookingRecord {
   totalAmount: number;
 }
+
+export interface CompanyBookingView extends CompanyBookingRecord {
+  totalAmount: number;
+}
+
+const BOOKING_STATUS_TRANSITIONS: Record<
+  BookingStatus,
+  readonly BookingStatus[]
+> = {
+  PENDING: ['CONFIRMED', 'CANCELLED'],
+  CONFIRMED: ['COMPLETED', 'CANCELLED'],
+  CANCELLED: [],
+  COMPLETED: [],
+};
 
 @Injectable()
 export class BookingsService {
@@ -65,6 +81,14 @@ export class BookingsService {
           if (!departure) {
             throw new NotFoundException(
               'Tour departure not found.',
+            );
+          }
+
+          if (departure.status !== 'SCHEDULED') {
+            throw new ConflictException(
+              'Tour departure is not available for booking while status is ' +
+                departure.status +
+                '.',
             );
           }
 
@@ -179,6 +203,155 @@ export class BookingsService {
     }
 
     return this.toBookingView(booking);
+  }
+
+  private toCompanyBookingView(
+    booking: CompanyBookingRecord,
+  ): CompanyBookingView {
+    const unitPrice = Number(booking.unitPrice);
+    const guestCount = Number(booking.guestCount);
+
+    return {
+      ...booking,
+      unitPrice,
+      departurePrice: Number(booking.departurePrice),
+      totalAmount: unitPrice * guestCount,
+    };
+  }
+
+  async getCompanyBookings(
+    companyId: number,
+  ): Promise<CompanyBookingView[]> {
+    if (!Number.isInteger(companyId) || companyId <= 0) {
+      throw new BadRequestException(
+        'Authenticated company is invalid.',
+      );
+    }
+
+    const bookings =
+      await this.bookingsRepository.findByCompanyId(
+        companyId,
+      );
+
+    return bookings.map((booking) =>
+      this.toCompanyBookingView(booking),
+    );
+  }
+
+  async getCompanyBookingById(
+    companyId: number,
+    bookingId: number,
+  ): Promise<CompanyBookingView> {
+    if (!Number.isInteger(companyId) || companyId <= 0) {
+      throw new BadRequestException(
+        'Authenticated company is invalid.',
+      );
+    }
+
+    if (!Number.isInteger(bookingId) || bookingId <= 0) {
+      throw new BadRequestException(
+        'Invalid booking ID.',
+      );
+    }
+
+    const booking =
+      await this.bookingsRepository.findByIdAndCompanyId(
+        bookingId,
+        companyId,
+      );
+
+    if (!booking) {
+      throw new NotFoundException(
+        'Booking not found.',
+      );
+    }
+
+    return this.toCompanyBookingView(booking);
+  }
+
+  async updateCompanyBookingStatus(
+    companyId: number,
+    bookingId: number,
+    status: BookingStatus,
+  ): Promise<BookingView> {
+    if (!Number.isInteger(companyId) || companyId <= 0) {
+      throw new BadRequestException(
+        'Authenticated company is invalid.',
+      );
+    }
+
+    if (!Number.isInteger(bookingId) || bookingId <= 0) {
+      throw new BadRequestException(
+        'Invalid booking ID.',
+      );
+    }
+
+    const booking =
+      await this.bookingsRepository.findByIdAndCompanyId(
+        bookingId,
+        companyId,
+      );
+
+    if (!booking) {
+      throw new NotFoundException(
+        'Booking not found.',
+      );
+    }
+
+    const allowedTransitions =
+      BOOKING_STATUS_TRANSITIONS[booking.status];
+
+    if (!allowedTransitions.includes(status)) {
+      throw new ConflictException(
+        `Cannot change booking status from ${booking.status} to ${status}.`,
+      );
+    }
+
+    const updatedBooking =
+      await this.bookingsRepository.updateStatusByCompany(
+        bookingId,
+        companyId,
+        status,
+        booking.status,
+      );
+
+    if (!updatedBooking) {
+      const currentBooking =
+        await this.bookingsRepository.findByIdAndCompanyId(
+          bookingId,
+          companyId,
+        );
+
+      if (!currentBooking) {
+        throw new NotFoundException(
+          'Booking not found.',
+        );
+      }
+
+      if (
+        status === 'COMPLETED' &&
+        currentBooking.status === booking.status
+      ) {
+        throw new ConflictException(
+          'A booking can only be completed after the tour has ended.',
+        );
+      }
+
+      throw new ConflictException(
+        `Booking status changed to ${currentBooking.status} before the requested update could be applied.`,
+      );
+    }
+
+    this.realtimeService.emitToUser(
+      updatedBooking.userId,
+      'booking.status.updated',
+      {
+        bookingId: updatedBooking.id,
+        status: updatedBooking.status,
+      },
+    );
+
+    return this.toBookingView(updatedBooking);
   }
 
   private async findDepartureForBooking(
@@ -369,4 +542,3 @@ interface BookingRow {
   created_at: Date;
   updated_at: Date;
 }
-

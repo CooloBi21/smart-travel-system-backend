@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { JwtPayload } from './interfaces/auth-user.interface';
@@ -21,9 +22,19 @@ export class AuthService {
   constructor(
     private readonly usersRepository: UsersRepository,
     private readonly jwtService: JwtService,
+    private readonly platformSettingsService: PlatformSettingsService,
   ) {}
 
   async register(dto: RegisterDto) {
+    const settings =
+      await this.platformSettingsService.getSettings();
+
+    if (!settings.allowCustomerRegistration) {
+      throw new ForbiddenException(
+        'Customer registration is currently disabled.',
+      );
+    }
+
     const email = dto.email.trim().toLowerCase();
     const fullName = dto.fullName.trim();
     const phone = dto.phone?.trim() || null;

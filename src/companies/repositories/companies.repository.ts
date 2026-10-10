@@ -37,6 +37,52 @@ export class CompaniesRepository {
     private readonly databaseService: DatabaseService,
   ) {}
 
+  async findAll(): Promise<CompanyRecord[]> {
+    const result = await this.databaseService.query<{
+      id: number;
+      account_user_id: number;
+      name: string;
+      slug: string;
+      description: string | null;
+      logo_url: string | null;
+      contact_email: string | null;
+      contact_phone: string | null;
+      status: CompanyStatus;
+      created_at: Date;
+      updated_at: Date;
+    }>(
+      `
+        SELECT
+          id,
+          account_user_id,
+          name,
+          slug,
+          description,
+          logo_url,
+          contact_email,
+          contact_phone,
+          status,
+          created_at,
+          updated_at
+        FROM public.companies
+        ORDER BY
+          CASE status
+            WHEN 'PENDING' THEN 1
+            WHEN 'ACTIVE' THEN 2
+            WHEN 'SUSPENDED' THEN 3
+            WHEN 'ARCHIVED' THEN 4
+            ELSE 5
+          END,
+          name ASC,
+          id ASC
+      `,
+    );
+
+    return result.rows.map((company) =>
+      this.mapCompany(company),
+    );
+  }
+
   async findById(
     id: number,
   ): Promise<CompanyRecord | null> {

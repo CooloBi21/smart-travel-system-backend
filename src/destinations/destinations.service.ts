@@ -28,6 +28,10 @@ export class DestinationsService {
     private readonly ingestionRepository: IngestionRepository,
   ) {}
 
+  async getAllActive(): Promise<DestinationRecord[]> {
+    return this.destinationsRepository.findAllActive();
+  }
+
   async getById(
     id: number,
   ): Promise<DestinationRecord> {

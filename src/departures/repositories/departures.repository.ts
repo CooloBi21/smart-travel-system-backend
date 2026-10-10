@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { PoolClient } from 'pg';
+
 import { DatabaseService } from '../../database/database.service';
 
 export type DepartureStatus =
@@ -29,6 +31,12 @@ export interface UpdateDepartureInput {
   departureDate?: string;
   pricePerPerson?: number;
   capacity?: number;
+}
+
+export interface UpdateDepartureWithCapacityResult {
+  departure: DepartureRecord | null;
+  reservedSlots: number;
+  capacityExceeded: boolean;
 }
 
 @Injectable()
@@ -224,6 +232,169 @@ export class DeparturesRepository {
     const row = result.rows[0];
 
     return row ? this.mapDeparture(row) : null;
+  }
+
+  async updateWithCapacityCheck(
+    departureId: number,
+    tourId: number,
+    input: UpdateDepartureInput,
+  ): Promise<UpdateDepartureWithCapacityResult> {
+    return this.databaseService.withTransaction(
+      async (client: PoolClient) => {
+        const departureResult =
+          await client.query<DepartureRow>(
+            `
+              SELECT
+                id,
+                tour_id,
+                departure_date,
+                price_per_person,
+                capacity,
+                status,
+                created_at,
+                updated_at
+              FROM public.tour_departures
+              WHERE id = $1
+                AND tour_id = $2
+              FOR UPDATE
+            `,
+            [departureId, tourId],
+          );
+
+        const lockedDeparture =
+          departureResult.rows[0];
+
+        if (!lockedDeparture) {
+          return {
+            departure: null,
+            reservedSlots: 0,
+            capacityExceeded: false,
+          };
+        }
+
+        const reservedSlotsResult =
+          await client.query<{
+            reserved_slots: number;
+          }>(
+            `
+              SELECT COALESCE(
+                SUM(guest_count)
+                FILTER (
+                  WHERE status IN ('PENDING', 'CONFIRMED')
+                ),
+                0
+              )::INTEGER AS reserved_slots
+              FROM public.bookings
+              WHERE tour_departure_id = $1
+            `,
+            [departureId],
+          );
+
+        const reservedSlots =
+          reservedSlotsResult.rows[0]?.reserved_slots ?? 0;
+
+        if (
+          input.capacity !== undefined &&
+          input.capacity < reservedSlots
+        ) {
+          return {
+            departure: this.mapDeparture(lockedDeparture),
+            reservedSlots,
+            capacityExceeded: true,
+          };
+        }
+
+        const fields: string[] = [];
+        const params: unknown[] = [];
+
+        if (input.departureDate !== undefined) {
+          fields.push(`departure_date = $${params.length + 1}`);
+          params.push(input.departureDate);
+        }
+
+        if (input.pricePerPerson !== undefined) {
+          fields.push(
+            `price_per_person = $${params.length + 1}`,
+          );
+          params.push(input.pricePerPerson);
+        }
+
+        if (input.capacity !== undefined) {
+          fields.push(`capacity = $${params.length + 1}`);
+          params.push(input.capacity);
+        }
+
+        if (fields.length === 0) {
+          return {
+            departure: this.mapDeparture(lockedDeparture),
+            reservedSlots,
+            capacityExceeded: false,
+          };
+        }
+
+        params.push(departureId);
+        params.push(tourId);
+
+        const departureIdParam = params.length - 1;
+        const tourIdParam = params.length;
+
+        const updatedResult =
+          await client.query<DepartureRow>(
+            `
+              UPDATE public.tour_departures
+              SET
+                ${fields.join(', ')}
+              WHERE id = $${departureIdParam}
+                AND tour_id = $${tourIdParam}
+              RETURNING
+                id,
+                tour_id,
+                departure_date,
+                price_per_person,
+                capacity,
+                status,
+                created_at,
+                updated_at
+            `,
+            params,
+          );
+
+        const updatedDeparture =
+          updatedResult.rows[0];
+
+        return {
+          departure: updatedDeparture
+            ? this.mapDeparture(updatedDeparture)
+            : null,
+          reservedSlots,
+          capacityExceeded: false,
+        };
+      },
+    );
+  }
+
+  async getReservedSlots(
+    departureId: number,
+  ): Promise<number> {
+    const result =
+      await this.databaseService.query<{
+        reserved_slots: number;
+      }>(
+        `
+          SELECT COALESCE(
+            SUM(guest_count)
+            FILTER (
+              WHERE status IN ('PENDING', 'CONFIRMED')
+            ),
+            0
+          )::INTEGER AS reserved_slots
+          FROM public.bookings
+          WHERE tour_departure_id = $1
+        `,
+        [departureId],
+      );
+
+    return result.rows[0]?.reserved_slots ?? 0;
   }
 
   async updateStatus(

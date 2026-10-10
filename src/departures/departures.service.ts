@@ -17,6 +17,27 @@ interface ActiveCompanyContext {
   id: number;
 }
 
+const DEPARTURE_STATUS_TRANSITIONS: Record<
+  DepartureStatus,
+  readonly DepartureStatus[]
+> = {
+  SCHEDULED: [
+    'CLOSED',
+    'CANCELLED',
+    'COMPLETED',
+  ],
+
+  CLOSED: [
+    'SCHEDULED',
+    'CANCELLED',
+    'COMPLETED',
+  ],
+
+  CANCELLED: [],
+
+  COMPLETED: [],
+};
+
 @Injectable()
 export class DeparturesService {
   constructor(
@@ -131,11 +152,28 @@ export class DeparturesService {
     }
 
     try {
-      return await this.departuresRepository.update(
-        departureId,
-        tourId,
-        input,
-      );
+      const updateResult =
+        await this.departuresRepository.updateWithCapacityCheck(
+          departureId,
+          tourId,
+          input,
+        );
+
+      if (!updateResult.departure) {
+        throw new NotFoundException(
+          'Không tìm thấy ngày khởi hành.',
+        );
+      }
+
+      if (updateResult.capacityExceeded) {
+        throw new ConflictException(
+          'Sức chứa mới không được nhỏ hơn số chỗ đã đặt (' +
+            updateResult.reservedSlots +
+            ').',
+        );
+      }
+
+      return updateResult.departure;
     } catch (error) {
       if (this.isUniqueViolation(error)) {
         throw new ConflictException(
@@ -164,6 +202,24 @@ export class DeparturesService {
     if (!existing) {
       throw new NotFoundException(
         'Không tìm thấy ngày khởi hành.',
+      );
+    }
+
+    if (existing.status === status) {
+      return existing;
+    }
+
+    if (
+      !DEPARTURE_STATUS_TRANSITIONS[
+        existing.status
+      ].includes(status)
+    ) {
+      throw new BadRequestException(
+        'Không thể chuyển trạng thái ngày khởi hành từ ' +
+          existing.status +
+          ' sang ' +
+          status +
+          '.',
       );
     }
 

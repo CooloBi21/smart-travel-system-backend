@@ -25,6 +25,13 @@ export class CompaniesController {
     private readonly companiesService: CompaniesService,
   ) {}
 
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('PLATFORM_ADMIN')
+  async getAll() {
+    return this.companiesService.getAll();
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('COMPANY_ADMIN')

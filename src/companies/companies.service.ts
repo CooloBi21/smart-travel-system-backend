@@ -7,13 +7,20 @@ import {
 } from '@nestjs/common';
 import { AuthenticatedUser } from '../auth/interfaces/auth-user.interface';
 import { CreateCompanyDto } from './dto/create-company.dto';
-import { CompaniesRepository } from './repositories/companies.repository';
+import {
+  CompaniesRepository,
+  CompanyRecord,
+} from './repositories/companies.repository';
 
 @Injectable()
 export class CompaniesService {
   constructor(
     private readonly companiesRepository: CompaniesRepository,
   ) {}
+
+  async getAll(): Promise<CompanyRecord[]> {
+    return this.companiesRepository.findAll();
+  }
 
   async createCompany(
     user: AuthenticatedUser,

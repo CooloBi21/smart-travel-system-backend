@@ -21,5 +21,9 @@ import { BookingsRepository } from './repositories/bookings.repository';
     BookingsService,
     BookingsRepository,
   ],
+
+  exports: [
+    BookingsRepository,
+  ],
 })
 export class BookingsModule {}

@@ -19,8 +19,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 import { CreateDepartureDto } from './dto/create-departure.dto';
 import { UpdateDepartureDto } from './dto/update-departure.dto';
+import { UpdateDepartureStatusDto } from './dto/update-departure-status.dto';
 import { DeparturesService } from './departures.service';
-import { DepartureStatus } from './repositories/departures.repository';
 
 interface ActiveCompany {
   id: number;
@@ -104,13 +104,13 @@ export class DeparturesController {
     @CurrentCompany() company: ActiveCompany,
     @Param('tourId', ParseIntPipe) tourId: number,
     @Param('departureId', ParseIntPipe) departureId: number,
-    @Body('status') status: DepartureStatus,
+    @Body() dto: UpdateDepartureStatusDto,
   ) {
     return this.departuresService.updateDepartureStatus(
       company,
       tourId,
       departureId,
-      status,
+      dto.status,
     );
   }
 
